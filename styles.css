@@ -1,0 +1,15 @@
+/* styles.css */
+.grammar-correction-button {
+  background-color: #4CAF50; /* Green background */
+  color: white; /* White text */
+  border: none;
+  padding: 5px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  opacity: 0.8;
+  transition: opacity 0.3s;
+}
+
+.grammar-correction-button:hover {
+  opacity: 1.0;
+}

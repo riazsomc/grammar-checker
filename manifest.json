@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Grammar Checker",
+  "version": "1.0",
+  "description": "Highlight grammar errors, suggest corrections, and apply changes.",
+  "permissions": ["scripting", "storage", "activeTab"],
+  "host_permissions": ["https://bot.w3datanet.com/grammar-checker/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "48": "icon.png"
+  }
+}
