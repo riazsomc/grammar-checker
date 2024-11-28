@@ -1,4 +1,5 @@
-chrome.runtime.onInstalled.addListener(() => {
-    console.log("Grammar Checker extension installed!");
-  });
-  
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "get-token") {
+      sendResponse({ token: "your_secure_token_123" });
+  }
+});

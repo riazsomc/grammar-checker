@@ -129,36 +129,44 @@ function attachCorrectionButton(element, doc = document) {
     button.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
-    
+
         const originalText = getElementText(element);
         console.log("Original Text:", originalText);
-    
-        // Call your API
-        try {
-            const response = await fetch("https://bot.w3datanet.com/grammar-checker/check", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: originalText }),
-            });
-    
-            if (response.ok) {
-                const data = await response.json();
-                console.log("API Response:", data);
-                if (data.corrected_text && data.corrected_text !== originalText) {
-                    setElementText(element, originalText, data.corrected_text);
-                    console.log("Text corrected and differences highlighted.");
+
+        // Retrieve the token from the background script
+        chrome.runtime.sendMessage({ type: "get-token" }, async (response) => {
+            const token = response.token;
+
+            // Call your API with the token
+            try {
+                const apiResponse = await fetch("https://bot.w3datanet.com/grammar-checker/check", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": token
+                    },
+                    body: JSON.stringify({ text: originalText }),
+                });
+
+                if (apiResponse.ok) {
+                    const data = await apiResponse.json();
+                    console.log("API Response:", data);
+                    if (data.corrected_text && data.corrected_text !== originalText) {
+                        setElementText(element, originalText, data.corrected_text);
+                        console.log("Text corrected and differences highlighted.");
+                    } else {
+                        alert("No corrections found.");
+                    }
                 } else {
-                    alert("No corrections found.");
+                    console.error("API Error:", apiResponse.statusText);
                 }
-            } else {
-                console.error("API Error:", response.statusText);
+            } catch (error) {
+                console.error("Error calling API:", error);
             }
-        } catch (error) {
-            console.error("Error calling API:", error);
-        }
+        });
     });
-    
 }
+
 
 // Function to get text from an editable element
 function getElementText(element) {
