@@ -1,3 +1,11 @@
+console.log('window.Diff:', window.Diff);
+console.log('window.JsDiff:', window.JsDiff);
+const DiffLib = window.Diff || window.JsDiff;
+
+if (typeof DiffLib === 'undefined') {
+    console.error('Diff library is not defined.');
+}
+
 // Track processed elements and iframes to prevent duplicate processing
 const processedElements = new WeakSet();
 const processedIframes = new WeakSet();
@@ -121,10 +129,10 @@ function attachCorrectionButton(element, doc = document) {
     button.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
-
+    
         const originalText = getElementText(element);
         console.log("Original Text:", originalText);
-
+    
         // Call your API
         try {
             const response = await fetch("https://bot.w3datanet.com/grammar-checker/check", {
@@ -132,13 +140,13 @@ function attachCorrectionButton(element, doc = document) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text: originalText }),
             });
-
+    
             if (response.ok) {
                 const data = await response.json();
                 console.log("API Response:", data);
                 if (data.corrected_text && data.corrected_text !== originalText) {
-                    setElementText(element, data.corrected_text);
-                    console.log("Text corrected.");
+                    setElementText(element, originalText, data.corrected_text);
+                    console.log("Text corrected and differences highlighted.");
                 } else {
                     alert("No corrections found.");
                 }
@@ -149,6 +157,7 @@ function attachCorrectionButton(element, doc = document) {
             console.error("Error calling API:", error);
         }
     });
+    
 }
 
 // Function to get text from an editable element
@@ -163,14 +172,98 @@ function getElementText(element) {
 }
 
 // Function to set text in an editable element
-function setElementText(element, text) {
-    const tag = element.tagName.toLowerCase();
-    if (tag === "textarea") {
-        element.value = text;
+function setElementText(element, originalText, correctedText) {
+    const modal = document.getElementById('correction-modal');
+    const modalBody = document.getElementById('correction-modal-body');
+    const modalClose = document.getElementById('correction-modal-close');
+  
+    // Compute the diff
+    const diff = DiffLib.diffWords(originalText, correctedText);
+  
+    // Build the HTML with highlights
+    let resultHtml = '';
+    diff.forEach((part) => {
+      let escapedText = part.value.replace(/&/g, "&amp;")
+                                  .replace(/</g, "&lt;")
+                                  .replace(/>/g, "&gt;");
+      if (part.added) {
+        resultHtml += `<span class="diff-added">${escapedText}</span>`;
+      } else if (part.removed) {
+        resultHtml += `<span class="diff-removed">${escapedText}</span>`;
+      } else {
+        resultHtml += escapedText;
+      }
+    });
+  
+    // Display the diff in the modal
+    modalBody.innerHTML = resultHtml;
+  
+    // Position the modal just above the editable element
+    positionModalAboveElement(modal, element);
+  
+    // Show the modal
+    modal.style.display = 'block';
+  
+    // Update the contenteditable element with the corrected text
+    if (element.tagName.toLowerCase() === 'textarea') {
+      element.value = correctedText;
     } else if (element.isContentEditable) {
-        element.innerText = text;
+      element.innerText = correctedText;
     }
-}
+  
+    // Close modal on click of close button
+    modalClose.onclick = function() {
+      modal.style.display = 'none';
+    };
+  
+    // Close modal when user clicks outside of modal content
+    document.addEventListener('click', function(event) {
+      if (!modal.contains(event.target) && event.target !== modal) {
+        modal.style.display = 'none';
+      }
+    }, { once: true });
+  }
+
+  function positionModalAboveElement(modal, element) {
+    // Temporarily display the modal off-screen to calculate its dimensions
+    modal.style.visibility = 'hidden';
+    modal.style.display = 'block';
+    modal.style.top = '0px';
+    modal.style.left = '-9999px';
+  
+    // Get the element's position
+    const rect = element.getBoundingClientRect();
+  
+    // Calculate modal dimensions
+    const modalHeight = modal.offsetHeight;
+    const modalWidth = modal.offsetWidth;
+  
+    // Calculate modal position
+    let topPosition = window.scrollY + rect.top - modalHeight - 10; // 10px gap
+    let leftPosition = window.scrollX + rect.left;
+  
+    // Ensure the modal doesn't go off-screen vertically
+    if (topPosition < window.scrollY) {
+      // If there's not enough space above, position it below the element
+      topPosition = window.scrollY + rect.bottom + 10;
+    }
+  
+    // Ensure the modal doesn't go off-screen horizontally
+    const windowWidth = window.innerWidth;
+    if (leftPosition + modalWidth > window.scrollX + windowWidth) {
+      leftPosition = window.scrollX + windowWidth - modalWidth - 10; // 10px padding from edge
+    }
+    if (leftPosition < window.scrollX + 10) {
+      leftPosition = window.scrollX + 10; // Minimum 10px from the left edge
+    }
+  
+    // Set modal position
+    modal.style.top = `${topPosition}px`;
+    modal.style.left = `${leftPosition}px`;
+  
+    // Make the modal visible
+    modal.style.visibility = 'visible';
+  }
 
 // Function to attach to editable elements within iframes
 function attachToIframeEditables() {
@@ -268,3 +361,20 @@ document.querySelectorAll("textarea, [contenteditable='true']").forEach((element
 
 // Attach to editable elements within iframes
 attachToIframeEditables();
+
+// Inject the modal into the page
+function injectModal() {
+    const modalHtml = `
+      <div id="correction-modal" class="correction-modal">
+        <span id="correction-modal-close" class="correction-modal-close">&times;</span>
+        <div id="correction-modal-content" class="correction-modal-content">
+          <div id="correction-modal-body"></div>
+        </div>
+      </div>
+    `;
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+  }
+  
+  injectModal();

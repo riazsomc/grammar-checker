@@ -13,3 +13,45 @@
 .grammar-correction-button:hover {
   opacity: 1.0;
 }
+
+/* Modal container */
+.correction-modal {
+  display: none; /* Hidden by default */
+  position: absolute;
+  z-index: 100000;
+  width: auto;
+  max-width: 80%;
+  background-color: #fefefe;
+  border: 1px solid #888;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+/* Modal content */
+.correction-modal-content {
+  padding: 20px;
+}
+
+/* Close button */
+.correction-modal-close {
+  color: #aaa;
+  float: right;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.correction-modal-close:hover,
+.correction-modal-close:focus {
+  color: black;
+  text-decoration: none;
+}
+
+/* Styles for diff-added and diff-removed */
+.diff-added {
+  background-color: #a6f3a6 !important;
+}
+
+.diff-removed {
+  background-color: #f3a6a6 !important;
+  text-decoration: line-through !important;
+}
