@@ -76,7 +76,7 @@ function getAbsoluteBoundingRect(el) {
     };
 }
 
-// Function to attach the correction button to an editable element
+// Function to attach the correction icon to an editable element
 function attachCorrectionButton(element, doc = document) {
     if (processedElements.has(element) || element.dataset.hasCorrectionButton) return;
 
@@ -91,22 +91,21 @@ function attachCorrectionButton(element, doc = document) {
         return;
     }
 
-    // Create the correction button
-    const button = document.createElement("button");
-    button.textContent = "Correct Text";
-    button.className = "grammar-correction-button";
+    // Create the correction icon (instead of button text)
+    const button = document.createElement("img");
+    button.src = chrome.runtime.getURL("icon.png");  // Make sure 'icon.png' is in your extension
+    button.alt = "Grammar Check Icon";
+    button.className = "grammar-correction-icon";
     button.style.position = "absolute";
-    button.style.zIndex = "100000"; // Increased z-index to ensure visibility
+    button.style.zIndex = "100000";
     button.style.cursor = "pointer";
 
-    // Append the button to the top-level document body
+    // Append the icon to the top-level document body
     document.body.appendChild(button);
 
-    // Position the button at the bottom-right corner of the editable area
+    // Position the icon at the bottom-right corner of the editable area
     const positionButton = () => {
         const absoluteRect = getAbsoluteBoundingRect(element);
-
-        // Align the button's bottom-right corner with the editable area's bottom-right corner
         button.style.left = `${absoluteRect.left + absoluteRect.width - button.offsetWidth}px`;
         button.style.top = `${absoluteRect.top + absoluteRect.height - button.offsetHeight}px`;
     };
@@ -125,7 +124,7 @@ function attachCorrectionButton(element, doc = document) {
     });
     resizeObserver.observe(element);
 
-    // Add click event to the button
+    // Add click event to the icon
     button.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -152,8 +151,8 @@ function attachCorrectionButton(element, doc = document) {
                     const data = await apiResponse.json();
                     console.log("API Response:", data);
                     if (data.corrected_text && data.corrected_text !== originalText) {
-                        setElementText(element, originalText, data.corrected_text);
-                        console.log("Text corrected and differences highlighted.");
+                        // Show the diff in the modal, but DON'T replace the text yet
+                        showDiffInModal(element, originalText, data.corrected_text);
                     } else {
                         alert("No corrections found.");
                     }
@@ -167,6 +166,62 @@ function attachCorrectionButton(element, doc = document) {
     });
 }
 
+// Function to show diff in the modal (WITHOUT immediately replacing the text)
+function showDiffInModal(element, originalText, correctedText) {
+    const modal = document.getElementById('correction-modal');
+    const modalBody = document.getElementById('correction-modal-body');
+    const modalClose = document.getElementById('correction-modal-close');
+    const acceptChangesButton = document.getElementById('accept-changes-button');
+
+    // Compute the diff
+    const diff = DiffLib.diffWords(originalText, correctedText);
+
+    // Build the HTML with highlights
+    let resultHtml = '';
+    diff.forEach((part) => {
+        let escapedText = part.value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        if (part.added) {
+            resultHtml += `<span class="diff-added">${escapedText}</span>`;
+        } else if (part.removed) {
+            resultHtml += `<span class="diff-removed">${escapedText}</span>`;
+        } else {
+            resultHtml += escapedText;
+        }
+    });
+
+    // Display the diff in the modal
+    modalBody.innerHTML = resultHtml;
+
+    // Show the modal
+    positionModalAboveElement(modal, element);
+    modal.style.display = 'block';
+
+    // Close modal on click of close button
+    modalClose.onclick = function() {
+      modal.style.display = 'none';
+    };
+
+    // Close modal when user clicks outside of modal content
+    document.addEventListener('click', function(event) {
+      if (!modal.contains(event.target) && event.target !== modal) {
+        modal.style.display = 'none';
+      }
+    }, { once: true });
+
+    // Accept changes button
+    acceptChangesButton.onclick = function() {
+      // Only now do we replace the text
+      if (element.tagName.toLowerCase() === 'textarea') {
+        element.value = correctedText;
+      } else if (element.isContentEditable) {
+        element.innerText = correctedText;
+      }
+      modal.style.display = 'none';
+    };
+}
 
 // Function to get text from an editable element
 function getElementText(element) {
@@ -179,99 +234,47 @@ function getElementText(element) {
     return "";
 }
 
-// Function to set text in an editable element
-function setElementText(element, originalText, correctedText) {
-    const modal = document.getElementById('correction-modal');
-    const modalBody = document.getElementById('correction-modal-body');
-    const modalClose = document.getElementById('correction-modal-close');
-  
-    // Compute the diff
-    const diff = DiffLib.diffWords(originalText, correctedText);
-  
-    // Build the HTML with highlights
-    let resultHtml = '';
-    diff.forEach((part) => {
-      let escapedText = part.value.replace(/&/g, "&amp;")
-                                  .replace(/</g, "&lt;")
-                                  .replace(/>/g, "&gt;");
-      if (part.added) {
-        resultHtml += `<span class="diff-added">${escapedText}</span>`;
-      } else if (part.removed) {
-        resultHtml += `<span class="diff-removed">${escapedText}</span>`;
-      } else {
-        resultHtml += escapedText;
-      }
-    });
-  
-    // Display the diff in the modal
-    modalBody.innerHTML = resultHtml;
-  
-    // Position the modal just above the editable element
-    positionModalAboveElement(modal, element);
-  
-    // Show the modal
-    modal.style.display = 'block';
-  
-    // Update the contenteditable element with the corrected text
-    if (element.tagName.toLowerCase() === 'textarea') {
-      element.value = correctedText;
-    } else if (element.isContentEditable) {
-      element.innerText = correctedText;
-    }
-  
-    // Close modal on click of close button
-    modalClose.onclick = function() {
-      modal.style.display = 'none';
-    };
-  
-    // Close modal when user clicks outside of modal content
-    document.addEventListener('click', function(event) {
-      if (!modal.contains(event.target) && event.target !== modal) {
-        modal.style.display = 'none';
-      }
-    }, { once: true });
-  }
-
-  function positionModalAboveElement(modal, element) {
+// Position modal above or below the element, ensuring it stays in view
+function positionModalAboveElement(modal, element) {
     // Temporarily display the modal off-screen to calculate its dimensions
     modal.style.visibility = 'hidden';
     modal.style.display = 'block';
     modal.style.top = '0px';
     modal.style.left = '-9999px';
-  
+
     // Get the element's position
     const rect = element.getBoundingClientRect();
-  
+
     // Calculate modal dimensions
     const modalHeight = modal.offsetHeight;
     const modalWidth = modal.offsetWidth;
-  
+
     // Calculate modal position
     let topPosition = window.scrollY + rect.top - modalHeight - 10; // 10px gap
     let leftPosition = window.scrollX + rect.left;
-  
+
     // Ensure the modal doesn't go off-screen vertically
     if (topPosition < window.scrollY) {
-      // If there's not enough space above, position it below the element
-      topPosition = window.scrollY + rect.bottom + 10;
+        // If there's not enough space above, position it below the element
+        topPosition = window.scrollY + rect.bottom + 10;
     }
-  
+
     // Ensure the modal doesn't go off-screen horizontally
     const windowWidth = window.innerWidth;
     if (leftPosition + modalWidth > window.scrollX + windowWidth) {
-      leftPosition = window.scrollX + windowWidth - modalWidth - 10; // 10px padding from edge
+        leftPosition = window.scrollX + windowWidth - modalWidth - 10; // 10px padding from edge
     }
     if (leftPosition < window.scrollX + 10) {
-      leftPosition = window.scrollX + 10; // Minimum 10px from the left edge
+        leftPosition = window.scrollX + 10; // Minimum 10px from the left edge
     }
-  
+
     // Set modal position
     modal.style.top = `${topPosition}px`;
     modal.style.left = `${leftPosition}px`;
-  
+
     // Make the modal visible
     modal.style.visibility = 'visible';
-  }
+}
 
 // Function to attach to editable elements within iframes
 function attachToIframeEditables() {
@@ -331,7 +334,7 @@ const observer = new MutationObserver((mutations) => {
         mutation.addedNodes.forEach((node) => {
             if (node.nodeType === Node.ELEMENT_NODE) {
                 // If an iframe is added, attempt to attach to its editable elements
-                if (node.tagName.toLowerCase() === "iframe") {
+                if (node.tagName && node.tagName.toLowerCase() === "iframe") {
                     attachToIframeEditables();
                 }
 
@@ -377,12 +380,12 @@ function injectModal() {
         <span id="correction-modal-close" class="correction-modal-close">&times;</span>
         <div id="correction-modal-content" class="correction-modal-content">
           <div id="correction-modal-body"></div>
+          <button id="accept-changes-button" class="accept-changes-button">Accept Changes</button>
         </div>
       </div>
     `;
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-  }
-  
-  injectModal();
+}
+injectModal();
